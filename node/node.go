@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,14 @@ import (
 type Event struct {
 	Type string
 	Data any
+}
+
+// PeerInfo describes a peer in a structured way for the CLI layer.
+type PeerInfo struct {
+	ID        string
+	Nick      string
+	Connected bool
+	Known     bool
 }
 
 type cacheEntry struct {
@@ -189,6 +198,32 @@ func (n *Node) Connect(addr string) error {
 	return nil
 }
 
+// ListPeersConnect returns structured peer information for UI rendering.
+func (n *Node) ListPeersConnect() []PeerInfo {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	infos := make([]PeerInfo, 0, len(n.peers))
+	for id, p := range n.peers {
+		nick := p.Nick
+		if nick == "" {
+			nick = shortID(id)
+		}
+		infos = append(infos, PeerInfo{
+			ID:        id,
+			Nick:      nick,
+			Connected: true,
+			Known:     true,
+		})
+	}
+
+	sort.Slice(infos, func(i, j int) bool {
+		return infos[i].Nick < infos[j].Nick
+	})
+
+	return infos
+}
+
 func (n *Node) AddPeer(p *peer.Peer) {
 	n.mu.Lock()
 	if _, exists := n.peers[p.ID]; exists {
@@ -214,6 +249,7 @@ func (n *Node) RemovePeer(id string) {
 	p, ok := n.peers[id]
 	if ok {
 		delete(n.peers, id)
+		// delete(n.knownPeers, id)
 		for dest, via := range n.routes {
 			if via == id {
 				delete(n.routes, dest)
@@ -221,6 +257,10 @@ func (n *Node) RemovePeer(id string) {
 		}
 	}
 	n.mu.Unlock()
+
+	// if ok {
+	// 	n.Broadcast(n.CreateHandshake(), "")
+	// }
 
 	if ok && p != nil && p.Nick != "" {
 		n.Events <- Event{Type: "system", Data: p.Nick + " desconectado"}
@@ -287,6 +327,10 @@ func (n *Node) HandleMessage(p *peer.Peer, msg protocol.Message) {
 				p.Nick = payload.Nick
 				n.Events <- Event{Type: "system", Data: payload.Nick + " actualizó su nick"}
 			}
+			n.updateRoutesFromHandshake(p, payload)
+			n.mu.Lock()
+			n.knownPeers[p.ID] = p.Nick
+			n.mu.Unlock()
 			return
 		}
 
@@ -464,7 +508,7 @@ func (n *Node) ListPeers() []string {
 		encrypted := ""
 		status := "sin handshake"
 		if p.SharedKey != nil {
-			encrypted = " 🔒"
+			encrypted = " "
 			status = "encriptado"
 		} else if p.Identified {
 			status = "esperando clave"

@@ -1,121 +1,113 @@
 # p2p-chat
 
-Chat CLI P2P en Go con encriptación y handshake firmado para mitigar spoofing.
+Chat CLI P2P en Go con cifrado por enlace, handshakes firmados y un modelo de enrutamiento básico para experimentos de red distribuida.
 
-## 📌 Descripción
+## Estado actual del sistema
 
-Proyecto de chat punto a punto construido en Go. Incluye cifrado AES-256-GCM (hop-by-hop), intercambio de claves ECDH y autenticación de handshakes mediante firmas (`ed25519`). El objetivo es ofrecer una base modular para explorar networking, criptografía y diseño P2P.
+El proyecto ya funciona como un prototipo funcional de red P2P con:
 
-## ✨ Características (destacadas)
+- Conexiones TCP directas entre nodos.
+- Generación de claves ECDH P-256 y pares de firma ed25519 por nodo.
+- Handshakes firmados para validar la identidad del peer antes de aceptar la sesión.
+- Derivación de una clave compartida por enlace para cifrar mensajes directos con AES-256-GCM.
+- Enrutamiento básico de mensajes, propagación limitada de peers conocidos y ACKs para confirmación de entrega.
+- CLI interactiva con comandos para conectar, listar peers, enviar mensajes directos o globales, cambiar nick y consultar historial.
 
-- ✅ **Handshakes firmados** — cada handshake incluye una clave pública de firma y una firma `ed25519` que permite validar la identidad del peer.
-- ✅ **Encriptación de transporte** — AES-256-GCM con claves derivadas por ECDH P-256 por enlace.
-- ✅ **Confirmación de entrega (ACK)** — ACKs para mensajes directos.
-- ✅ **CLI interactiva** — colores, indicadores y comandos útiles.
-- ✅ **Descubrimiento de peers** — propagación controlada de peers conocidos (se guarda `knownPeers` con nick y public key).
+## Qué está implementado hoy
 
-## 🧱 Estructura del proyecto
+### Red y conexión
 
-- `main.go`: inicializa el nodo y la CLI.
-- `node/`: lógica P2P, manejo de peers, eventos, encriptación y retransmisión.
-- `peer/`: representa conexión TCP y loop de lectura/escritura.
-- `protocol/`: esquema de mensajes JSON y payloads (chat, handshake, ack).
-- `crypto/`: ECDH P-256, AES-GCM y utilidades para firmas `ed25519`.
+- El nodo escucha en un puerto TCP y acepta conexiones entrantes.
+- Se pueden abrir conexiones salientes con `/connect <ip:port>`.
+- Cada peer se registra en el nodo y se almacena en un mapa interno de peers activos.
+- Se aplica un límite máximo de peers conectados y un esquema simple de rate limiting por conexión.
+
+### Criptografía
+
+- Se usan claves ECDH P-256 para derivar una clave compartida por enlace.
+- Se usan firmas ed25519 sobre el payload del handshake para reducir spoofing y poisoning simples.
+- Los mensajes directos pueden cifrarse con AES-256-GCM cuando existe una clave compartida con el peer remoto.
+
+### Mensajería
+
+- Los mensajes de tipo `chat` soportan difusión global y mensajes dirigidos a un peer específico.
+- El sistema usa TTL para evitar retransmisiones infinitas.
+- Los ACKs se envían cuando un mensaje dirigido llega a su destinatario.
+- El nodo guarda un historial local de mensajes y expone comandos para consultarlo.
+
+### CLI
+
+Comandos disponibles actualmente:
+
+- `/connect <ip:port>` — conectar a otro nodo.
+- `/peers` — listar peers directos e indirectos conocidos.
+- `/msg <shortID> <mensaje>` — enviar un mensaje directo.
+- `/broadcast <mensaje>` — enviar un mensaje a todos los peers conectados.
+- `/nick <nuevoNick>` — actualizar el nick del nodo.
+- `/history` — mostrar el historial local.
+- `/exit` — salir del chat.
+
+## Estructura del proyecto
+
+- `main.go`: inicializa el nodo y arranca la CLI.
+- `node/`: lógica central del P2P, gestión de peers, eventos, enrutamiento, historial y retransmisión.
+- `peer/`: representa una conexión TCP y su loop de lectura/escritura.
+- `protocol/`: definiciones de mensajes JSON (`handshake`, `chat`, `ack`) y payloads.
+- `crypto/`: utilidades para ECDH, AES-GCM y firmas ed25519.
 - `cli/`: interfaz de línea de comandos.
+- `transport/`: directorio reservado para futuras abstracciones de transporte.
 
-## 🔧 Componentes clave
+## Flujo de funcionamiento
 
-### Node
+1. El nodo genera un par ECDH y un par de firma ed25519.
+2. Al conectar, se intercambia un `handshake` con `SignPublicKey` y `Signature`.
+3. El receptor valida la firma, deriva la clave compartida y prepara el peer para mensajes cifrados por enlace.
+4. Los mensajes directos se cifran con AES-256-GCM usando esa clave compartida.
+5. Los mensajes globales o reencaminados usan TTL y se propagan de forma controlada.
 
-- `Node.PrivateKey` (ECDH P-256) y `Node.PublicKey` (hex)
-- `Node.SignPrivateKey` y `Node.SignPublicKey` (`ed25519`, public key en base64)
-- `Node.AddPeer(p)` / `Node.RemovePeer(id)` / `Node.ListPeers()`
+## Limitaciones actuales
 
-### Peer
+El proyecto sigue siendo un prototipo y tiene varias limitaciones importantes:
 
-- `Peer` contiene `Conn`, `SharedKey` (AES) y `SignPublicKey` del peer remoto.
+- No hay una infraestructura de confianza real (PKI/CA); las firmas de handshake ayudan, pero no resuelven identidad verificable a largo plazo.
+- El cifrado actual es hop-by-hop por enlace, no end-to-end para mensajes privados.
+- El enrutamiento es básico y depende de la propagación de peers conocidos.
+- No hay almacenamiento persistente ni recuperación de estado tras reinicio.
+- No hay tests automatizados ni cobertura de integración en el repositorio.
+- La carpeta `transport/` está vacía y está preparada para una abstracción más limpia del transporte.
 
-### Protocol
+## Dependencias
 
-`protocol.HandshakePayload` ahora incluye `SignPublicKey` y `Signature`.
+- `github.com/google/uuid`
+- `github.com/fatih/color`
 
-Tipos de mensaje:
-- `handshake`: intercambio de identidad y clave pública + firma
-- `chat`: mensaje de texto (encriptado hop-by-hop para mensajes directos)
-- `ack`: confirmación de entrega
+Instalación:
 
-## 🔐 Autenticación de handshakes
+```bash
+go mod download
+```
 
-- El handshake se firma con `ed25519` usando la clave de firma local (clave pública enviada en `SignPublicKey`).
-- Al recibir un handshake, el nodo verifica la firma sobre los campos del handshake antes de aceptar la conexión y propagar rutas.
-- Esto mitiga spoofing y poisoning simples, pero no sustituye a una infraestructura de confianza (PKI) para garantizar identidad a largo plazo.
-
-## 🚀 Flujo resumido
-
-1. Nodo genera par ECDH y par de firma `ed25519`.
-2. Al conectar, se envía `handshake` firmado con `SignPublicKey` y `Signature`.
-3. Receptor valida la firma y deriva la clave compartida ECDH para cifrar el canal directo.
-4. Mensajes directos se encriptan con AES-256-GCM usando la clave derivada.
-5. ACKs se usan para confirmar entregas directas.
-
-## 💬 Comandos disponibles
-
-- `/connect <ip:port>` — conectar a un nodo
-- `/peers` — listar peers directos e indirectos (indicando si son indirectos y vía quién)
-- `/msg <shortID> <texto>` — enviar mensaje directo (encriptado)
-- `/broadcast <texto>` — enviar mensaje a todos
-- `/history` — mostrar historial local
-
-## 📊 Ejemplo de ejecución
+## Cómo ejecutarlo
 
 Terminal 1:
+
 ```bash
 go run . 5000 Alice
 ```
 
 Terminal 2:
+
 ```bash
 go run . 5001 Bob
 /connect 127.0.0.1:5000
 /peers
-# ●  Alice 🔒
-/msg a Hola desde Bob
-# ✓ Mensaje entregado
+/msg <id> Hola desde Bob
 ```
 
-## 🔎 Seguridad y limitaciones actuales
+## Próximos pasos recomendados
 
-- Las firmas en handshakes autenticán el origen del handshake, pero **no** hay un anclaje de confianza (PKI/CA) por lo que nodos maliciosos con claves propias siguen pudiendo participar.
-- El cifrado de mensajes es hop-by-hop entre nodos remotos; los nodos intermedios pueden ver la carga si se reenvía descifrada.
-- `knownPeers` se propaga y se almacena, lo que puede permitir envenenamiento de rutas si no se aplica política adicional.
-- No hay rate limiting ni límites de conexión por ahora; añadirlos es recomendable contra DoS.
-
-## ✅ Buenas prácticas recomendadas
-
-- Establecer una lista de nodos de confianza (whitelist) o usar un canal de distribución seguro de claves públicas.
-- Añadir rate limiting por IP/peer y límites máximos de conexiones simultáneas.
-- Validar y acotar el tamaño de `knownPeers` propagado para evitar crecimiento ilimitado.
-- Considerar cifrado E2E verdadero para mensajes privados si la privacidad es crítica.
-
-## 📦 Dependencias
-
-```
-github.com/google/uuid v1.6.0
-github.com/fatih/color v1.17.0
-```
-
-Instalar:
-```bash
-go mod download
-go get github.com/fatih/color@v1.17.0
-```
-
-## 📌 Próximos pasos sugeridos
-
-1. Implementar limits y rate-limiting por peer/IP.
-2. Evaluar modelo de confianza: PKI, notary service o intercambio fuera de banda de `SignPublicKey`.
-3. Considerar cifrado E2E para mensajes directos (no sólo hop-by-hop).
-
-## 🎯 Objetivo
-
-Proveer una base segura y modular para experimentar con protocolos P2P reales y evolucionar hacia un sistema con identidad verificable y resistencia a ataques de red.
+1. Añadir pruebas automatizadas para nodos, handshakes y enrutamiento.
+2. Separar mejor la abstracción de transporte para facilitar nuevos backends.
+3. Evaluar un modelo de confianza más sólido para la identidad de los peers.
+4. Considerar cifrado end-to-end para mensajes privados si la privacidad es una prioridad.
+5. Mejorar la observabilidad del sistema con logging estructurado y métricas.

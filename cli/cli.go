@@ -10,6 +10,7 @@ import (
 
 	"p2p-chat/node"
 	"p2p-chat/protocol"
+	"p2p-chat/ui"
 
 	"github.com/fatih/color"
 )
@@ -29,18 +30,29 @@ type CLI struct {
 
 func NewCLI(n *node.Node) *CLI {
 	return &CLI{node: n}
-}
+}                                  
 
 func (c *CLI) showWelcome() {
-	fmt.Println(colorCyan("╔════════════════════════════════════════╗"))
-	fmt.Println(colorCyan("║         P2P Chat - Conectado           ║"))
-	fmt.Println(colorCyan("╚════════════════════════════════════════╝"))
+	fmt.Print(colorCyan(`
+	P2P CHAT V1.0.0
+	╔════════════════════════════════════════════════════════════════════════════════════════════════╗
+	|  ███████████   ████████  ███████████       █████████  █████   █████   █████████   ███████████	 |
+	| ░░███░░░░░███ ███░░░░███░░███░░░░░███     ███░░░░░███░░███   ░░███   ███░░░░░███ ░█░░░███░░░█	 |
+	|  ░███    ░███░░░    ░███ ░███    ░███    ███     ░░░  ░███    ░███  ░███    ░███ ░   ░███  ░ 	 |
+	|  ░██████████    ███████  ░██████████    ░███          ░███████████  ░███████████     ░███    	 |
+	|  ░███░░░░░░    ███░░░░   ░███░░░░░░     ░███          ░███░░░░░███  ░███░░░░░███     ░███    	 |
+	|  ░███         ███      █ ░███           ░░███     ███ ░███    ░███  ░███    ░███     ░███    	 |
+	|  █████       ░██████████ █████           ░░█████████  █████   █████ █████   █████    █████   	 |
+	| ░░░░░        ░░░░░░░░░░ ░░░░░             ░░░░░░░░░  ░░░░░   ░░░░░ ░░░░░   ░░░░░    ░░░░       |
+	╚════════════════════════════════════════════════════════════════════════════════════════════════╝
+	`))
+	fmt.Printf("\n")
 	fmt.Printf("%s Tu ID: %s\n", colorGreen("➜"), colorYellow(c.node.ID[:8]))
 	fmt.Printf("%s Nick: %s\n", colorGreen("➜"), colorYellow(c.node.Nick))
 	fmt.Println(colorGray("───────────────────────────────────────"))
 	fmt.Println(colorGray("Comandos disponibles:"))
 	fmt.Printf("  %s - Conectar a un peer\n", colorCyan("/connect <ip:port>"))
-	fmt.Println(colorGray("Ej: "), colorCyan("/connect 127.0.0.1:5000"))
+	fmt.Printf("  %s - Ejemplo de conexión\n", colorCyan("/connect 127.0.0.1:5000"))
 	fmt.Printf("  %s - Listar peers conectados\n", colorCyan("/peers"))
 	fmt.Printf("  %s - Enviar mensaje directo\n", colorCyan("/msg <id> <mensaje>"))
 	fmt.Printf("  %s - Enviar al chat global\n", colorCyan("/broadcast <mensaje>"))
@@ -61,7 +73,8 @@ func (c *CLI) Start() {
 			status = colorRed("●")
 		}
 
-		fmt.Print(colorCyan(fmt.Sprintf("[%s %d peers] > ", status, peers)))
+		// fmt.Print(colorCyan(fmt.Sprintf("[%s %d peers] > ", status, peers)))
+		fmt.Printf("[%s %d peers] > ", status, peers)
 
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
@@ -125,6 +138,9 @@ func (c *CLI) handleCommand(line string) {
 			fmt.Printf("  %s %s\n", colorCyan("●"), colorMagenta(p))
 		}
 
+	case "/graph":
+		c.renderNetworkView()
+
 	case "/nick":
 		if len(args) == 0 {
 			fmt.Println(colorRed("✗ Uso: /nick <nuevoNick>"))
@@ -167,7 +183,7 @@ func (c *CLI) handleCommand(line string) {
 	case "/history":
 		history := c.node.History()
 		if len(history) == 0 {
-			fmt.Println(colorYellow("⚠ No hay historial todavía"))
+			fmt.Println(colorYellow("No hay historial todavía"))
 			return
 		}
 
@@ -192,12 +208,26 @@ func (c *CLI) handleCommand(line string) {
 		}
 
 	case "/exit":
-		fmt.Println(colorGreen("👋 Saliendo del chat..."))
+		fmt.Println(colorGreen("Saliendo del chat..."))
 		os.Exit(0)
 
 	default:
 		fmt.Println(colorRed("✗ Comando desconocido: " + cmd))
 	}
+}
+
+func (c *CLI) renderNetworkView() {
+	peerInfos := make([]ui.PeerInfo, 0)
+	for _, p := range c.node.ListPeersConnect() {
+		peerInfos = append(peerInfos, ui.PeerInfo{
+			Nick:      p.Nick,
+			Connected: p.Connected,
+			Known:     p.Known,
+		})
+	}
+
+	view := ui.RenderNetwork(c.node.Nick, peerInfos)
+	fmt.Println(colorCyan(view))
 }
 
 func (c *CLI) ListenEvents() {
@@ -212,9 +242,9 @@ func (c *CLI) ListenEvents() {
 			json.Unmarshal(msg.Payload, &payload)
 
 			encrypted := ""
-			if msg.Encrypted {
-				encrypted = " 🔒"
-			}
+			// if msg.Encrypted {
+			// 	encrypted = " 🔒"
+			// }
 
 			formattedTime := time.Unix(msg.Timestamp, 0).Format("15:04:05")
 
