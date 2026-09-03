@@ -103,11 +103,3 @@ go run . 5001 Bob
 /peers
 /msg <id> Hola desde Bob
 ```
-
-## Próximos pasos recomendados
-
-1. Añadir pruebas automatizadas para nodos, handshakes y enrutamiento.
-2. Separar mejor la abstracción de transporte para facilitar nuevos backends.
-3. Evaluar un modelo de confianza más sólido para la identidad de los peers.
-4. Considerar cifrado end-to-end para mensajes privados si la privacidad es una prioridad.
-5. Mejorar la observabilidad del sistema con logging estructurado y métricas.
