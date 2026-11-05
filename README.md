@@ -27,6 +27,8 @@ El proyecto ya funciona como un prototipo funcional de red P2P con:
 - Se usan claves ECDH P-256 para derivar una clave compartida por enlace.
 - Se usan firmas ed25519 sobre el payload del handshake para reducir spoofing y poisoning simples.
 - Los mensajes directos pueden cifrarse con AES-256-GCM cuando existe una clave compartida con el peer remoto.
+- La identidad del nodo (ID y claves privadas) se persiste en `identity.json` y se reutiliza entre reinicios.
+- La ruta de identidad puede cambiarse con la variable de entorno `P2P_CHAT_IDENTITY_FILE`.
 
 ### Mensajería
 

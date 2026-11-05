@@ -1,13 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 
 	"p2p-chat/cli"
 	"p2p-chat/node"
-
-	"github.com/google/uuid"
 )
 
 func parseArgs(args []string) (string, string) {
@@ -40,9 +39,15 @@ func parseArgs(args []string) (string, string) {
 func main() {
 	port, nick := parseArgs(os.Args)
 
-	nodeID := uuid.New().String()
-
-	n := node.NewNode(nodeID, nick)
+	identityPath := os.Getenv("P2P_CHAT_IDENTITY_FILE")
+	if identityPath == "" {
+		identityPath = "identity.json"
+	}
+	n, err := node.LoadOrCreateNode(identityPath, nick)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "no se pudo cargar la identidad: %v\n", err)
+		os.Exit(1)
+	}
 	n.StartListening(port)
 
 	//fmt.Printf("Nodo [%s] (%s) escuchando en puerto %s\n", nick, nodeID, port)

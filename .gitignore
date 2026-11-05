@@ -31,3 +31,4 @@ go.work.sum
 # .idea/
 # .vscode/
 PROJECT_CONTEXT.md
+identity.json

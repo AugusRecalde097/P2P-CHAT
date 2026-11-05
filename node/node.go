@@ -5,6 +5,7 @@ import (
 	"crypto/ecdh"
 	"crypto/ed25519"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -97,11 +98,11 @@ type Node struct {
 	history         []protocol.Message
 	Events          chan Event
 	// limits and rate-limiting
-	MaxPeers        int
+	MaxPeers         int
 	MessageRateLimit int
-	RateWindow      time.Duration
-	KnownPeersLimit int
-	RoutesLimit     int
+	RateWindow       time.Duration
+	KnownPeersLimit  int
+	RoutesLimit      int
 }
 
 func shortID(id string) string {
@@ -112,28 +113,37 @@ func shortID(id string) string {
 }
 
 func NewNode(id, nick string) *Node {
-	privKey, pubKey, _ := crypto.GenerateKeyPair()
-	signPub, signPriv, _ := crypto.GenerateSigningKeyPair()
-	signPubB64 := base64.StdEncoding.EncodeToString(signPub)
+	privKey, _, err := crypto.GenerateKeyPair()
+	if err != nil {
+		panic(err)
+	}
+	signPub, signPriv, err := crypto.GenerateSigningKeyPair()
+	if err != nil {
+		panic(err)
+	}
+	return newNodeWithKeys(id, nick, privKey, signPub, signPriv)
+}
+
+func newNodeWithKeys(id, nick string, privKey *ecdh.PrivateKey, signPub ed25519.PublicKey, signPriv ed25519.PrivateKey) *Node {
 	return &Node{
-		ID:             id,
-		Nick:           nick,
-		PrivateKey:     privKey,
-		PublicKey:      pubKey,
-		SignPrivateKey: signPriv,
-		SignPublicKey:  signPubB64,
-		peers:          make(map[string]*peer.Peer),
-		Events:         make(chan Event, 20),
-		seenMessages:   NewLRUCache(1024),
-		pendingMessages: make(map[string]bool),
-		routes:         make(map[string]string),
-		knownPeers:     make(map[string]string),
-		history:        make([]protocol.Message, 0),
-		MaxPeers:        50,
+		ID:               id,
+		Nick:             nick,
+		PrivateKey:       privKey,
+		PublicKey:        hex.EncodeToString(privKey.PublicKey().Bytes()),
+		SignPrivateKey:   signPriv,
+		SignPublicKey:    base64.StdEncoding.EncodeToString(signPub),
+		peers:            make(map[string]*peer.Peer),
+		Events:           make(chan Event, 20),
+		seenMessages:     NewLRUCache(1024),
+		pendingMessages:  make(map[string]bool),
+		routes:           make(map[string]string),
+		knownPeers:       make(map[string]string),
+		history:          make([]protocol.Message, 0),
+		MaxPeers:         50,
 		MessageRateLimit: 20,
-		RateWindow:      time.Second,
-		KnownPeersLimit: 100,
-		RoutesLimit:     500,
+		RateWindow:       time.Second,
+		KnownPeersLimit:  100,
+		RoutesLimit:      500,
 	}
 }
 
