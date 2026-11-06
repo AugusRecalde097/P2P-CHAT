@@ -1,4 +1,4 @@
-# p2p-chat
+# P2P-chat
 
 Chat CLI P2P en Go con cifrado por enlace, handshakes firmados y un modelo de enrutamiento básico para experimentos de red distribuida.
 

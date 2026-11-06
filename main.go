@@ -48,12 +48,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "no se pudo cargar la identidad: %v\n", err)
 		os.Exit(1)
 	}
+	
 	n.StartListening(port)
-
-	//fmt.Printf("Nodo [%s] (%s) escuchando en puerto %s\n", nick, nodeID, port)
-
 	cli := cli.NewCLI(n)
-
 	go cli.ListenEvents()
 	cli.Start()
 }
